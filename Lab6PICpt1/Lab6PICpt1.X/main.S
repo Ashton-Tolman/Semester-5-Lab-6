@@ -11,7 +11,7 @@
 ; CONFIG1
   CONFIG  FOSC = XT             ; Oscillator Selection bits (XT oscillator: Crystal/resonator on RA6/OSC2/CLKOUT and RA7/OSC1/CLKIN)
   CONFIG  WDTE = OFF            ; Watchdog Timer Enable bit (WDT disabled and can be enabled by SWDTEN bit of the WDTCON register)
-  CONFIG  PWRTE = OFF           ; Power-up Timer Enable bit (PWRT disabled)
+  CONFIG  PWRTE = OFF            ; Power-up Timer Enable bit (PWRT disabled)
   CONFIG  MCLRE = ON            ; RE3/MCLR pin function select bit (RE3/MCLR pin function is MCLR)
   CONFIG  CP = OFF              ; Code Protection bit (Program memory code protection is disabled)
   CONFIG  CPD = OFF             ; Data Code Protection bit (Data memory code protection is disabled)
@@ -61,8 +61,9 @@ Setup:
     MOVLW 0x01	    ; Make W all highs
     MOVWF 0x86	    ; Move W to TrisB
     CLRF 0x87	    ; TrisC sets all portC pins as outputs
-    BCF 0x81, 6	    ; Make interrupts trigger on falling edges
-    BCF 0x81, 7	    ; Give PortB weak pull ups
+    BSF 0x8C,1	    ; PIE1 Enable Timer2 interrupt 
+    MOVLW 0xF9	    ; Compare limit set at
+    MOVWF 0x92	    ; Set the Timer2 Compare limit 
 
 		    
     BCF  0x03, 06    ;
@@ -70,11 +71,15 @@ Setup:
     CLRF 0x06	    ; clear port B
     CLRF 0x05	    ; clear port A
     CLRF 0x07	    ; Clear portC
+    MOVLW 0b00100011; Put binary register in W	
+    MOVWF 0x12	    ; Turn TMR2 Postscaler to 1:16 and prescaler 1:16
+    
 		 
 		    
     ;Interrupt setup
     CLRF 0x0B	    ; Clear INTCON to disable all interrupts by default
-    BSF 0x0B,4	    ; Enable External interrupts
+    BSF 0x12,2	    ; Make TMR2 begin counting
+    BSF 0x0B,6	    ; Enable Peripheral Interrupts
     BSF 0x0B,7	    ; Enable Global interrups
     goto Main
     
@@ -89,11 +94,15 @@ ISRHandler:
     SWAPF STATUS,0	;Swap status to be saved into W
 			;Swaps are used because they dont change the status bits
     MOVWF STATUS_TEMP	;Save status to bank zero STATUS_TEMP register
-    goto InterruptChecks
+    BTFSC PIR1,1	;Test the TMR2 PR2 match flag bit (must be in Bank0)
+    goto Timer2Service
+    goto LeaveHandler
     
-InterruptChecks:
-    INCF 0x07,1		; Incremetns PortC
-    BCF 0x0B,1		; Clear the INT flag bit
+Timer2Service:
+    CLRF TMR2		;Clear the timer2 count
+    BSF PORTA,1		;Enable Diagnostic pin
+    BCF PORTA,1		;Disable Diagnostic pin
+    BCF PIR1,1		;Clear Timer2 flag
     goto LeaveHandler
     
 LeaveHandler:

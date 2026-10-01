@@ -1,6 +1,6 @@
 // Ashton Tolman
 // RCET3373
-// Lab6PICpt2
+// Lab6PICpt3
 // https://github.com/Ashton-Tolman/Semester-5-Lab-6.git
 // linker code:-Wl,-presetVect=0000h,-pisrVect=0004h,-pcode=0008h
 
@@ -60,19 +60,26 @@ Setup:
     BSF  0x03, 05	; Set bank 1 active 
     CLRF 0x85		; TrisA sets all portA pins as outputs
     CLRF 0x87		; TrisC sets all portC pins as outputs
-    BCF 0x81, 6		; Make interrupts trigger on falling edges
-    BSF 0x96,4		; Enable IOC on bit 4
-    BSF 0x96,5		; Enable IOC on bit 5
+    BSF 0x8C,0		; PIE1 Enable Timer1 interrupt 
+
 
     BCF  0x03, 06	;
     BCF  0x03, 05	; Set bank 0 active
     CLRF 0x05		; Clear port A
     CLRF 0x07		; Clear port C
+    MOVLW 0b00110000	; Put binary register in W
+    MOVWF 0x10		; TMR1 prescaler to 1:8 
+    MOVLW 0xDC		; Move count placement in W
+    MOVWF 0x0E		; Move W into TMR1L
+    MOVLW 0x0B		; Move count placement in W
+    MOVWF 0x0F		; Move W into TMR1H
 		     
     ;Interrupt setup
     CLRF 0x0B		; Clear INTCON to disable all interrupts by default
-    BSF 0x8B,3		; Enable PortB interrupt on change
-    BSF 0x8B,4		; Enable External interrupts
+			; Disable PortB interrupt on change
+	    		; Disable External interrupts
+    BSF 0x10,0		; Begin TMR1 counting
+    BSF 0x0B,6		; Enable Peripheral Interrupts
     BSF 0x8B,7		; Enable Global interrups
     
     BCF  0x03, 06	;
@@ -81,23 +88,44 @@ Setup:
     
 
 Main:
-    MOVF Intersection_State,W	; Copy byte to W
-    MOVWF PORTC			; Display Intersection_State on PortC
+    MOVF Intersection_State,W	    ; Copy byte to W
+    MOVWF PORTC			    ; Display Intersection_State on PortC
     
-Verify4:
-    BTFSC Intersection_State,6
-    goto Is4
+    CALL DecodeLights
     
-Isnt4:
-    BTFSS Intersection_State,4	; Test SC0, if high test SC1
-    goto Main			; if low, return to main (already found 4)
+    BTFSC Intersection_State,3   ; already in yellow?
+    goto YellowWait
+
+    BTFSS Intersection_State,7   ; green: wait for count 10
+    goto Main
+    BTFSS Intersection_State,5
+    goto Main
+    CALL Decide
+    goto Main
+
+YellowWait:
+    BTFSS Intersection_State,6   ; count reached 12 (1 s of yellow)
+    goto Main
+
     
-    BTFSS Intersection_State,5	; Test SC1, if high, a 3 is detected
-    goto Main			; if low, return to main (already found 4)
-    
-    ;By this point a 3 is detected
+Transition:
     BTFSS Intersection_State,0	; Test which direction we're going
-    goto NSLogic		; If Low, goto NS handler
+    goto GoEW		; If high Clear the register to change to NS
+    
+    CLRF Intersection_State
+    goto Main
+    
+    GoEW:
+    CLRF Intersection_State	; If low clear the Reg then set the direction bit
+    BSF Intersection_State,0	; Set bit to change to EW
+    goto Main
+    
+    
+Decide:
+    BTFSC    Intersection_State,3  ;is TRANSITION bit set low = skip
+    RETURN		           ;dont do anything
+    BTFSS    Intersection_State,0  ;look which direction is green N/S=0, E/W=1
+    goto     NSLogic               
     
 EWLogic:
     BTFSC Intersection_State,1	    ; Test the NS flag 
@@ -111,36 +139,49 @@ NSLogic:
     goto SetTransition		    ; If low, will toggle so set bit 3
     BTFSS Intersection_State,2	    ; Test the EW flag to check for Remain
     goto Remain			    ; If low, Remain NS
-    goto SetTransition		    ; If high toggle so set bit 3
     
     SetTransition:
 	BSF Intersection_State,3    ; Set the transition bit
-	goto Main
+	RETURN
 	
     Remain:
 	BTFSS Intersection_State,0  ; Check Direction we're going
-	goto ToggleFromEW	    ; If low Clear the Reg to remain NS
-	
+	goto ToNS	    ; If low Clear the Reg to remain NS
+    ToEW:
 	CLRF Intersection_State	    ; If high Clear the Reg
 	BSF Intersection_State,0    ; Then set the Direction bit to remain EW
-	goto Main
-
-Is4:
-    BTFSC Intersection_State,3	; Test if we should transition
-    goto Transition		; If high, transition
-    goto Main
-    
-Transition:
-    BTFSC Intersection_State,0	; Test which direction we're going
-    goto ToggleFromEW		; If high Clear the register to change to NS
-    
-    CLRF Intersection_State	; If low clear the Reg then set the direction bit
-    BSF Intersection_State,0	; Set bit to change to EW
-    goto Main
-    
-    ToggleFromEW:
+	RETURN
+	
+    ToNS:
 	CLRF Intersection_State	; Clear register to change to NS
-	goto Main		
+	RETURN		
+    
+DecodeLights:
+    BTFSS   Intersection_State,3    ;is TRANSITION yellow flag on
+    goto    GreenPhase		    ;no we're in a green/red phase
+    goto    YellowPhase		    ;yes we're in a yellow/red phase
+GreenPhase:
+    BTFSS   Intersection_State,0    ;which way is green?
+    goto    SetNSGreen		    ;bit was 0 N/S green
+    goto    SetEWGreen		    ;bit was 1 E/W green
+YellowPhase:
+    BTFSS   Intersection_State,0   
+    goto    SetNSYellow
+    goto    SetEWYellow
+SetNSGreen:
+    MOVLW   0b00001100		    ;RA2 on (N/S green), RA3 on (E/W red)
+    goto    StoreLights
+SetEWGreen:
+    MOVLW   0b00100001		    ;RA0 on (N/S red), RA5 on (E/W green)
+    goto    StoreLights
+SetNSYellow:
+    MOVLW   0b00001010		    ;RA1 on (N/S yellow), RA3 on (E/W red)
+    goto    StoreLights
+SetEWYellow:
+    MOVLW   0b00010001		    ;RA0 on (N/S red), RA4 on (E/W yellow)
+StoreLights:
+    MOVWF   PORTA		    ;takes moved values and then displays on the LEDs
+    RETURN
     
 ISRHandler:
     MOVWF W_TEMP	    ;Copy W to TEMP register
@@ -148,12 +189,27 @@ ISRHandler:
 			    ;Swaps are used because they dont change the status bits
     MOVWF STATUS_TEMP	    ;Save status to bank zero STATUS_TEMP register
     
-    BTFSC INTCON,1	    ;Test the INT external flag
-    goto INTExternalService ;if the flag is up go to service
-    BTFSC INTCON,0	    ;Test the IOCPortB flag
-    goto IOCPORTBService    ;if the flag is up go to service
+    BTFSC PIR1,0	    ;Test TMR1 flag bit
+    goto TMR1Service
     goto LeaveHandler
     
+TMR1Service:
+    MOVLW 0xDC		; Move count placement in W
+    MOVWF 0x0E		; Move W into TMR1L
+    MOVLW 0x0B		; Move count placement in W
+    MOVWF 0x0F		; Move W into TMR1H
+    
+    MOVF Intersection_State,W	; Read the Contents of the register
+    MOVWF State_Count		; Place the contents into changeable register
+    SWAPF State_Count,1		; Swap upper and lower nibbles for incrementing
+    INCF State_Count,1		; Increment Status_Count
+    SWAPF State_Count,0		; Swap upper and lower nibbles to return
+    MOVWF Intersection_State	; Restore Intersection_State
+
+    BCF PIR1,0		; Clear TMR1 flag bit
+    goto LeaveHandler
+    
+    ;These interrupts are not on but they will be used in later
 INTExternalService:
     MOVF Intersection_State,W	; Read the Contents of the register
     MOVWF State_Count		; Place the contents into changeable register

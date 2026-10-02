@@ -115,13 +115,13 @@ ${DISTDIR}/Lab6PICpt1.X.${IMAGE_TYPE}.${OUTPUT_SUFFIX}: ${OBJECTFILES}  nbprojec
 	@${MKDIR} ${DISTDIR} 
 	${MP_LD} -mcpu=PIC16F883 ${OBJECTFILES_QUOTED_IF_SPACED} \
 	-o ${DISTDIR}/Lab6PICpt1.X.${IMAGE_TYPE}.${OUTPUT_SUFFIX} \
-	 -D__DEBUG=1   -mdfp="${DFP_DIR}/xc8"  -msummary=+mem,-psect,-class,-hex,-file,-sha1,-sha256,-xml,-xmlfull -Wl,-presetVect=0000h,-pisrVect=0004h,-pcode=0008h
+	 -D__DEBUG=1   -mdfp="${DFP_DIR}/xc8"  -msummary=+mem,-psect,-class,-hex,-file,-sha1,-sha256,-xml,-xmlfull -mcallgraph=std -Wl,-Map=${FINAL_IMAGE_NAME_MINUS_EXTENSION}.map -mno-download-hex -Wl,-presetVect=0000h,-pisrVect=0004h,-pcode=0008h
 else
 ${DISTDIR}/Lab6PICpt1.X.${IMAGE_TYPE}.${OUTPUT_SUFFIX}: ${OBJECTFILES}  nbproject/Makefile-${CND_CONF}.mk   
 	@${MKDIR} ${DISTDIR} 
 	${MP_LD} -mcpu=PIC16F883 ${OBJECTFILES_QUOTED_IF_SPACED} \
 	-o ${DISTDIR}/Lab6PICpt1.X.${IMAGE_TYPE}.${OUTPUT_SUFFIX} \
-	  -mdfp="${DFP_DIR}/xc8"  -msummary=+mem,-psect,-class,-hex,-file,-sha1,-sha256,-xml,-xmlfull -Wl,-presetVect=0000h,-pisrVect=0004h,-pcode=0008h
+	  -mdfp="${DFP_DIR}/xc8"  -msummary=+mem,-psect,-class,-hex,-file,-sha1,-sha256,-xml,-xmlfull -mcallgraph=std -Wl,-Map=${FINAL_IMAGE_NAME_MINUS_EXTENSION}.map -mno-download-hex -Wl,-presetVect=0000h,-pisrVect=0004h,-pcode=0008h
 endif
 
 

@@ -93,14 +93,14 @@ Main:
     
     CALL DecodeLights
     
-    BTFSC Intersection_State,3   ; already in yellow?
+    BTFSC Intersection_State,3	    ; already in yellow?
     goto YellowWait
 
-    BTFSS Intersection_State,7   ; green: wait for count 10
-    goto Main
-    BTFSS Intersection_State,5
-    goto Main
-    CALL Decide
+    BTFSS Intersection_State,7	    ; green: wait for count 10
+    goto Main			    ;
+    BTFSS Intersection_State,5	    ;
+    goto Main			    ;
+    CALL Decide			    ; Once 10 is seen, set transition & toggle direction
     goto Main
 
 YellowWait:
@@ -110,7 +110,7 @@ YellowWait:
     
 Transition:
     BTFSS Intersection_State,0	; Test which direction we're going
-    goto GoEW		; If high Clear the register to change to NS
+    goto GoEW			; If high Clear the register to change to NS
     
     CLRF Intersection_State
     goto Main
